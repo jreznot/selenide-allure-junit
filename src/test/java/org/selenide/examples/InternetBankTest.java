@@ -2,34 +2,28 @@ package org.selenide.examples;
 
 import com.codeborne.pdftest.PDF;
 import com.codeborne.selenide.Configuration;
-import com.codeborne.selenide.Screenshots;
 import com.codeborne.selenide.SelenideElement;
 import com.codeborne.selenide.logevents.SelenideLogger;
 import com.codeborne.xlstest.XLS;
-import com.google.common.io.Files;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Owner;
 import io.qameta.allure.selenide.AllureSelenide;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.openqa.selenium.By;
-import io.qameta.allure.Attachment;
 
 import java.io.File;
 import java.io.IOException;
 
-import static com.codeborne.selenide.Condition.appear;
-import static com.codeborne.selenide.Condition.or;
-import static com.codeborne.selenide.Condition.text;
-import static com.codeborne.selenide.Condition.visible;
+import static com.codeborne.selenide.Condition.*;
 import static com.codeborne.selenide.FileDownloadMode.PROXY;
-import static com.codeborne.selenide.Selectors.byText;
-import static com.codeborne.selenide.Selenide.$;
-import static com.codeborne.selenide.Selenide.closeWebDriver;
-import static com.codeborne.selenide.Selenide.open;
+import static com.codeborne.selenide.Selectors.*;
+import static com.codeborne.selenide.Selenide.*;
 import static org.junit.Assert.assertThat;
 
+@Owner("donald.duck")
 public class InternetBankTest {
 
   @BeforeClass
@@ -45,18 +39,20 @@ public class InternetBankTest {
   @Before
   public void login() {
     open("/");
+
     $(By.name("username")).val("demo");
     $(By.name("password")).val("demo").pressEnter();
+
     enter2ndFactor();
   }
 
   private void enter2ndFactor() {
     $("#otp-code-text").shouldBe(visible);
-    if ($("#login-crypto-button").isDisplayed()) {
-      $("#login-crypto-button").click();
-    }
-    else {
-      $(By.name("otpCode")).val("0000").pressEnter();
+
+    if ($(byId("login-crypto-button")).isDisplayed()) {
+      $(byId("login-crypto-button")).click();
+    } else {
+      $(byName("otpCode")).val("0000").pressEnter();
     }
   }
 
@@ -66,11 +62,12 @@ public class InternetBankTest {
   }
 
   @Test
+  @Feature("search")
   public void userCanLoadStatementForLastMonth() {
     open("/bank/overview");
 
     $("#accounts .account a").click();
-    $(".page-header").shouldHave(text("Statement"));
+    $(byClassName("page-header")).shouldHave(text("Statement"));
     $("#defined-periods").find(byText("Beginning of last month until today")).click();
   }
 
@@ -79,19 +76,27 @@ public class InternetBankTest {
     openStatement();
     $(".statement-container .transaction-row.tx-debit .counterparty-name").scrollTo().click();
     $("#transaction-dialog #transaction-header").shouldHave(text("Transaction details"));
-    $("#transaction-dialog #payment-beneficiary").shouldHave(text("Beneficiary"));
+
+    $("#transaction-dialog #payment-beneficiary")
+            .shouldHave(text("Beneficiary"))
+            .shouldHave(cssValue("border-bottom-color", "red"))
+            .shouldHave(attribute("title", "Payment"))
+            .shouldHave(cssClass("payment"));
+
     $("#transaction-dialog #beneficiary-account").shouldHave(
-        text("Beneficiary account"),
-        text("***** *** * **** ***0000")
+            text("Beneficiary account"),
+            text("***** *** * **** ***0000")
     );
   }
 
-  @Test @Ignore
+  @Test
+  @Ignore
   public void userCanDownloadStatementAsPdf() throws IOException {
     openStatement();
-    $("#statement-export").click();
 
-    File statementPdf = $("#btn-export-pdf").download();
+    $(byId("statement-export")).click();
+
+    File statementPdf = $(byId("btn-export-pdf")).download();
 
     PDF pdf = new PDF(statementPdf);
     assertThat(pdf, PDF.containsText("ПАО \"БАНК \"САНКТ-ПЕТЕРБУРГ\""));
@@ -100,10 +105,13 @@ public class InternetBankTest {
     assertThat(pdf, PDF.containsText("Statement Period:"));
   }
 
-  @Test @Ignore
+  @Feature("bank")
+  @Test
+  @Ignore
   public void userCanDownloadStatementAsExcel() throws IOException {
     openStatement();
-    $("#statement-export").click();
+
+    $(byId("statement-export")).click();
 
     File statementExcel = $("#btn-export-xls").download();
 
@@ -117,36 +125,31 @@ public class InternetBankTest {
   }
 
   @Test
+  @Feature("bank")
   public void userCanAssignAliasForAccount() {
     open("/bank/overview");
     SelenideElement account = $("#accounts .account", 2).scrollTo();
 
     account.find("a.alias")
-        .shouldHave(or("account or alias", text("50817 810 0 4800 0104467"), text("Это типа счёт"))
-            .because("the alias could already be changed by previous test run"))
-        .hover();
-    
-    account.find(".icon-edit").should(appear).click();
-    account.find(By.name("alias")).val("Это типа счёт").pressEnter();
-    
+            .shouldHave(or("account or alias", text("50817 810 0 4800 0104467"), text("Это типа счёт"))
+                    .because("the alias could already be changed by previous test run"))
+            .hover();
+
+    account.find(byClassName("icon-edit")).should(appear).click();
+
+    account.find(By.name("alias"))
+            .shouldHave(cssValue("border-bottom-color", "red"))
+            .val("Это типа счёт")
+            .pressEnter();
+
     account.shouldHave(text("Это типа счёт"));
-    
+
     account.shouldNotHave(text("50817 810 0 4800 0104467"));
   }
 
   private void openStatement() {
     open("/statement");
-    $("#defined-periods").find(byText("Beginning of last month until today")).click();
-  }
 
-  @After
-  public void tearDown() throws IOException {
-    screenshot();
-  }
-
-  @Attachment(type = "image/png")
-  public byte[] screenshot() throws IOException {
-    File screenshot = Screenshots.getLastScreenshot();
-    return screenshot == null ? null : Files.toByteArray(screenshot);
+    $(byId("defined-periods")).find(byText("Beginning of last month until today")).click();
   }
 }
